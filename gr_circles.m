@@ -12,27 +12,41 @@ clear all
 % email: szymon@patent.pl
 % licensed under MIT License
 % History
-% v1:0 17.11.2020
+% v1: 17.11.2020
+% v2: 08.12.2020 errors due to double vertices removed (thanks to Joerg Arndt)
 % Currently this is just a script not a MATLAB function.
 % Due to roundoff errors it may (it will) give inaccurate results for large k.
 
+% FURTHER SERIOUS BUGS ARE PRESSUMED
+
 % kind of circles
-% center_at_vertex = 1;
+center_at_vertex = 1;
 center_at_vertex = 0; % <=> center_at_ring_centre
+
+if center_at_vertex
+  disp 'ORIGIN AT HEX VERTEX'
+else
+  disp 'ORIGIN AT HEX CENTER'
+end
 
 % range of an initial unit square grid p with the origin 0,0
 % and size [-rng:1:rng]x[-rng:1:rng]
 rng = 100; 
+rng = 40; 
 
 % start with a unit square grid p with the origin 0,0
 % ----------------------------------------------------
 idx = 1;
 for i=-rng:rng % x
   for j=-rng:rng % y
-    p(idx,:) = [i j];
+    %sprintf('%d,%d', i, j)
+    p(idx,1) = i;
+    p(idx,2) = j;    
     idx = idx+1;
   end
 end
+length(p) % 
+%(2*rng+1)^2
 %p
 disp 'unit square grid p created'
 
@@ -49,100 +63,82 @@ for k=1:length(p)
       idx = idx+1;
     end
 end
+length(np) % |np| = floor(length(p)/2) + 1
+%floor(length(p)/2) + 1
 %np
 disp 'A2 triangle grid np created'
 
+% create hehagon grid from A2 grid
+% ----------------------------------------------------
+rngp_flg=1;
+idx = 1;
+k=1;
+while k<=length(np)
+  for l=0:2*rng
+    if k+l>length(np)
+      break
+    end
+    nnp(idx,:) = np(k+l,:);
+    %sprintf('%d,%d', k+l, idx)
+    idx = idx+1;
+  end
+  if rngp_flg
+    k=k+l+rng+2;
+    rngp_flg=0;
+  else
+    k=k+l+rng+1;
+    rngp_flg=1;  
+  end  
+end
+np = nnp;
+clear nnp
+disp 'hexagon grid np created'
+
+% rescale to a=1 and center
+% ----------------------------------------------------
+for k=1:length(np)
+  np(k,1) = np(k,1)/sqrt(3);
+  np(k,2) = np(k,2)/sqrt(3);
+  if ~center_at_vertex
+    np(k,1) = np(k,1) + 1;
+    np(k,2) = np(k,2);% + sqrt(3)/2;
+  end 
+end
+disp 'hexagon grid np rescaled'
+
 % crop A2 triangle grid np into a square
 % ----------------------------------------------------
-nplim = min(max(np));
+nplim = min(max(np))
 idx = 1;
 for k=1:length(np)
-  if abs( np(k,2) ) < nplim
-    nnp(idx,:) = np(k,:);
+  if ( abs( np(k,1) ) < nplim ) && ( abs( np(k,2) ) < nplim )
+    nnp(idx,1) = np(k,1);
+    nnp(idx,2) = np(k,2);   
+    %sprintf('%d,(%d,%d)', nnp(idx,1), nnp(idx,2))
     idx = idx+1;  
   end
 end
 np = nnp;
+clear nnp
 disp 'A2 triangle grid cropped'
 
-% create hehagon around every vertes of the A2 grid
-% and remove duplicates
-% ----------------------------------------------------
-%              0, 1 (2)
-%          /         \
-%-p3/2, 1/2 (1)       p3/2, 1/2 (3)
-%         |    x,y    |
-%-p3/2,-1/2 (6)       p3/2,-1/2 (4)
-%          \         /
-%              0,-1 (5)
-hx = [0 0];
-idx = 1;
-for k=1:length(np)
-  x = np(k,1);
-  y = np(k,2);  
-  for i=1:6
-    switch i
-      case 1
-        xx = x-sqrt(3)/2; 
-        yy = y+1/2;
-      case 2
-        xx = x; 
-        yy = y+1;
-      case 3
-        xx = x+sqrt(3)/2; 
-        yy = y+1/2;
-      case 4
-        xx = x+sqrt(3)/2; 
-        yy = y-1/2;
-      case 5
-        xx = x; 
-        yy = y-1;
-      case 6
-        xx = x-sqrt(3)/2; 
-        yy = y-1/2;
-      end
-      % take care of roundoff errors
-      if isempty( find( abs(hx(:,1)-xx)<10^(-15) & abs(hx(:,2)-yy)<10^(-14) ) ) % single & here      
-         idx = idx+1;         
-         hx(idx,1) = xx;
-         hx(idx,2) = yy;         
-      end
-  end
-end
-disp 'hex created'
-
 figure
+scatter(np(:,1), np(:,2),'.')
 hold on
-grid on
-%scatter(np(:,1), np(:,2),'o')
+%return
 
-if center_at_vertex 
-  % create new heh grid with the origin in the vertex
-  % ----------------------------------------------------
-  for k=2:length(hx) % hx(0) is the origin (0,0)
-    x = hx(k,1) + sqrt(3)/2;
-    y = hx(k,2) + 1/2;  
-    hxn(k-1, 1) = x;
-    hxn(k-1, 2) = y;  
-  end
-  hx = hxn;
-  disp 'ORIGIN AT HEX VERTEX'  
-else
-  disp 'ORIGIN AT HEX CENTER'  
-end  
-%hx
-scatter(hx(:,1), hx(:,2),'.r')
+hx=np;
 
-% populate all radii first
+% calculate radii rn between (0,0) and every hx
 % ----------------------------------------------------
 for k=1:length(hx)
   rn(k) = ( hx(k,1)^2 + hx(k,2)^2 )^(1/2);
 end
 rn = sort(rn);
 %rn
-disp 'radii populated'
+disp 'radii calculated'
 
-% truncate radii out of the grid
+% remove radii rn that are out of the grid
 % ----------------------------------------------------
 idx = 1;
 for k=1:length(rn)
@@ -152,9 +148,10 @@ for k=1:length(rn)
   end
 end
 rn = rn1;
-disp 'radii truncated'
+clear rn1
+disp 'radii removed'
 
-% collect the same radii
+% collect radii rnd having the same length
 % ----------------------------------------------------
 rnd = 0;
 idx = 1;
@@ -164,7 +161,8 @@ for k=1:length(rn)
   
   % take care of roundoff errors
   %findres = find( abs( rnd-rn(k) ) < 10^(-13)  ); % 10^(-13) is OK up to rng=250, k=9999 (A003136 table)
-  findres = find( abs( rnd-rn(k) ) < 10^(-12)  ); % 10^(-12) is OK to A202822 table
+  %findres = find( abs( rnd-rn(k) ) < 10^(-12)  ); % 10^(-12) is OK to A202822 table
+  findres = find( abs( rnd-rn(k) ) < 10^(-13)  );
   if isempty( findres )
     rnd(idx) = rn(k);
     idx = idx+1;         
@@ -173,11 +171,18 @@ end
 rnd = sort(rnd);
 disp 'same radii created'
 
-% count vertices at the same radius
+% count vertices at the same radius rn
 % ----------------------------------------------------
 idx = 1;
 count(idx) = 0;
-for k=2:length(rn) % rn(1) = 0
+
+if center_at_vertex
+  kmin=2
+else
+  kmin=1
+end
+
+for k=kmin:length(rn)
   if abs( rnd(idx)-rn(k) ) < 10^(-9)   
     count(idx) = count(idx)+1;
   else
@@ -189,15 +194,10 @@ for k=2:length(rn) % rn(1) = 0
   end
 end
 
-cntsm(1) = count(1);
-for k=2:length(count)
-  cntsm(k) = cntsm(k-1) + count(k);
-end
-
 count
 
 % validity check
-sum(count) == length(rn)-1
+sum(count) == length(rn)
 
 % draw circles around a vertex 0,0
 % ----------------------------------------------------
@@ -208,10 +208,16 @@ for k=1:length(rnd)
   xunit = rnd(k) * cos(th);
   yunit = rnd(k) * sin(th);
   plot(xunit, yunit, colkind);
+  %text( rnd(k), 0, sprintf('\\leftarrow %d', k) )      
+
+  
   if colkind == 'r'
     colkind = 'b';
+    text( rnd(k), 0.2, sprintf('%d', k) )    
   else 
     colkind = 'r';  
+    text( 0.2, rnd(k), sprintf('%d', k) )        
+    
   end
 end
 
