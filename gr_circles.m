@@ -16,15 +16,14 @@ clear all
 % v1: 17.11.2020
 % v2: 08.12.2020 errors due to doubled vertices removed (thanks to Joerg Arndt for hinting them)
 % v3: 09.12.2020 improved roundoff errors handling
+% v4: 10.12.2020 further improved roundoff errors handling
 % Currently this is just a script not a MATLAB function.
-% Due to roundoff errors the script may (it will) give inaccurate results for large k.
-
-% FURTHER BUGS ARE ALSO PRESSUMED
+% Bugs for large k are still pressumed to exist (tested positively for rng=700) 
 % ----------------------------------------------------
 
 % kind of circles
 center_at_vertex = 1;
-center_at_vertex = 0; % <=> center_at_hex_centre
+%center_at_vertex = 0; % <=> center_at_hex_centre
 
 if center_at_vertex
   OHwhatstr = 'ORIGIN AT HEX VERTEX'; % OHV
@@ -35,7 +34,7 @@ disp( OHwhatstr )
 
 % range of an initial unit square grid p with the origin 0,0
 % and size [-rng:1:rng]x[-rng:1:rng]
-rng = 40; 
+rng = 200; 
 
 % start with a unit square grid p with the origin 0,0
 % ----------------------------------------------------
@@ -155,20 +154,27 @@ disp 'out of the grid radii removed'
 for k=2:length(rn)
   diff(k-1) = rn(k)-rn(k-1);
 end
-
 diff=sort(diff);
-for k=1:length(diff)
-  if diff(k) > 10^-13 % set with rng=300 %!! BUT THIS VALUE IS SURELY DERIVABLE FROM diff !!
-     kthr1 = k-1;  % max diff due to numerical errors
-     kthr2 = k;    % min diff due to graphene structure
-     break
-  end
+[aa, bb, diff]= find( diff ); % get rid of zeros
+
+% calculate differences between differences
+% ----------------------------------------------------
+for k=2:0.9*length(diff)
+  diff1(k-1) = diff(k)-diff(k-1);
 end
-disp 'differences calculated'
+
+[m, kthr1] = max(diff1);   % max diff due to numerical errors
+kthr2 = kthr1 + 1;         % min diff due to graphene structure
+
+kthr1
+kthr2
 
 diff(kthr1), diff(kthr2)
-%[aa, bb, diff]= find( diff ); % get rid of zeros
-%figure, plot( diff(1:length(diff)-5) ), title(OHwhatstr);
+
+figure, hold on
+plot( diff(1:length(diff)) ), title(OHwhatstr);
+plot( diff1(1:length(diff1)), 'r' ), title(OHwhatstr);
+disp 'differences calculated'
 
 % collect radii rnd having the same length
 % ----------------------------------------------------
@@ -228,8 +234,13 @@ disp 'unique count values gathered'
 sum(count) == length(rn)
 
 % validity check 2
+if center_at_vertex
+  divi = 3;
+else
+  divi = 6;
+end  
 for k=1:length(count)
-  if mod( count(k), 3 ) ~= 0
+  if mod( count(k), divi ) ~= 0
     disp( sprintf('Error for %d circle yielding %d count', k, count(k) ) )
   end
 end   
